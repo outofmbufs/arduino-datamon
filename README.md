@@ -3,11 +3,11 @@ This program implements an Arduino analog data monitor. It constantly reads a nu
 
 The ring buffer can be accessed via a browser or via a JSON/HTTP interface.
 
-## Small memory footprint
-Well, it's not quite true that this has a small memory footprint; the program itself is pretty large. But I spent a lot of time and effort to maximize the available ring-buffer size so that you can still store a lot of data even on the smallest Arduino that has only 2K of RAM.  You will be able to store 248 samples on an arduino with only 2K of RAM.  That's 992 bytes out of the total 2048 on the machine (the rest of the RAM is needed for program stack, TCP buffers, and so forth).
-
-In my application that was plenty of storage so a 2K arduino sufficed; of course, you can also extend this storage by periodically reading data off the arduino and storing it externally.
-
+## Features
+* Sampling criteria are programmable. Input pins, recording thresholds, time parameters, "analog" vs "digital" mode.
+* Optimized RAM Usage. Can store 248 samples (992 bytes) on the standard/small 2K RAM arduino.
+* Web interface. You can manage the device completely via your web browser.
+* JSON HTTP interface. For programmatic access to sample data sp you don't have to screen-scrape the web interface to read the data.
 
 ## Documentation Wiki
 See the [wiki](https://github.com/outofmbufs/arduino-datamon/wiki) for documentation.

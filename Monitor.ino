@@ -3,6 +3,10 @@
 #include <EEPROM.h>
 #include <avr/pgmspace.h>
 
+// Copyright (c) 2015 Neil Webber.
+//
+// See LICENSE file.
+//
 // The MAC address this Arduino will use
 // Usually the Arduino Ethernet shields come with an address
 // (mine were labeled on the down side of the board). 

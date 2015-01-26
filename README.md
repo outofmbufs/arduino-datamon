@@ -8,6 +8,8 @@ The ring buffer can be accessed via a browser or via a JSON/HTTP interface.
 * Optimized RAM Usage. Can store 248 samples (992 bytes) on the standard/small 2K RAM arduino.
 * Web interface. You can manage the device completely via your web browser.
 * JSON HTTP interface. For programmatic access to sample data sp you don't have to screen-scrape the web interface to read the data.
+* Can be used simply to get real-time network access to the Arduino A/D.
+* Can be programmed to simply sample a pin every N milliseconds and keep the last 248 or so samples.
 
 ## Documentation Wiki
 See the [wiki](https://github.com/outofmbufs/arduino-datamon/wiki) for documentation.

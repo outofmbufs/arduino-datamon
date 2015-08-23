@@ -9,38 +9,40 @@
 //
 // The MAC address this Arduino will use
 // Usually the Arduino Ethernet shields come with an address
-// (mine were labeled on the down side of the board). 
+// (mine were labeled on the down side of the board).
 // Use that (edit it in here) if so.
 //
 // Otherwise, make one up like this. If you are making it up then
 // the first byte MUST be even and it SHOULD NOT be a
 // multiple of 4 (if you got an official one
-// somewhere then that will be a multiple of 4). 
-// 
+// somewhere then that will be a multiple of 4).
+//
 // (google MAC address format definition for explanation)
 
-byte mac[] = { 0x52, 0x52, 0x52, 0x12, 0x34, 0x56 };
+byte macaddr[] = { 0x52, 0x52, 0x52, 0x12, 0x34, 0x56 };
 
 // web server on port 80
 EthernetServer server(80);
 
-// the millis() function wraps approximately every 50 days of uptime
-// for reporting purposes (only) we extend that by counting wraps here
-int uptime_wraps = 0;
 
 // the main loop fills this in every iteration
 // it's only used for reporting (to check for memory leaks)
 int mainMemavail = 0;
-int memAvailChanges = 0;
+unsigned char memAvailChanges = 0;
+
+// the millis() function wraps approximately every 50 days of uptime
+// for reporting purposes (only) we extend that by counting wraps here
+unsigned char uptime_wraps = 0;
+
 
 // version string
-prog_char revision[] PROGMEM = "20141024.1";
+const char revision[] PROGMEM = "20150823.1";
 
 // ---------------------------
 // Storage of sampled data
 // ---------------------------
 //
-// Each sample reading is stored as a triple packed into 32 bits: 
+// Each sample reading is stored as a triple packed into 32 bits:
 //    [ time : value : pin ]
 //
 // where:
@@ -68,11 +70,11 @@ prog_char revision[] PROGMEM = "20141024.1";
 #define SRPIN(u)  ((u) & SRPIN_MASK)
 
 // this is useful in a few places and is clearer than using the mask
-// conceptually the max pin# might differ from the mask anyway 
+// conceptually the max pin# might differ from the mask anyway
 #define PINMAX       SRPIN_MASK     // the maximum pin number allowed
 
 // value field: next 10 bits
-#define SRVAL_MASK 0x3FF           
+#define SRVAL_MASK 0x3FF
 #define SRVSHIFT 3
 #define SRVAL(u)  (((u) >> SRVSHIFT) & SRVAL_MASK)
 
@@ -83,7 +85,7 @@ prog_char revision[] PROGMEM = "20141024.1";
 //
 // ****** NOTE THIS SPECIAL CASE ******
 // It's helpful to be able to know when a sample buffer entry has nothing
-// in it. To flag that, the specific combination of 
+// in it. To flag that, the specific combination of
 //
 //            pin=7, value=1022, time=0
 //
@@ -118,7 +120,7 @@ struct samplebuffer {
 //
 void add_sample(int v, unsigned long t, int pin, struct samplebuffer *sb) {
 
-  // clamp the value to the min/max that we can store 
+  // clamp the value to the min/max that we can store
   // (this should be a no-op in practice)
   if (v > SRVAL_MASK) v = SRVAL_MASK;
   if (v < 0) v = 0;
@@ -136,7 +138,7 @@ void add_sample(int v, unsigned long t, int pin, struct samplebuffer *sb) {
   sb->sampleReadings[sb->nextsample] = sval;
 
   // bump "pointer" to next sample and wrap if needed
-  sb->nextsample++;                    
+  sb->nextsample++;
   if (sb->nextsample == sb->bsize) {
     sb->nextsample = 0;
     sb->wrapcount++;           // we count sample wraps just for reporting
@@ -168,9 +170,9 @@ void init_samplebuffer(struct samplebuffer *sb) {
 //
 
 int freeRam () {
-  extern int __heap_start, *__brkval; 
-  int v; 
-  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
 }
 
 
@@ -184,7 +186,7 @@ int freeRam () {
 // doesn't have much ram (2K). We'll try for what is asked, OR
 // whatever number leaves a "safe" amount of memory behind.
 // The safe limit determined empirically (it works, but obviously
-// this is an empirical hack and is a bit fragile. 
+// this is an empirical hack and is a bit fragile.
 //
 
 #define ALLOCREMAINLIMIT 350
@@ -220,7 +222,7 @@ struct samplebuffer sampleRing;
 // Samples are only recorded ("trigger") if they meet these criteria:
 // SAMPLE_LEVEL mode:
 //   at least "timeThreshold" msecs has elapsed since last trigger
-//   the value has changed by at least "deltaThreshold" 
+//   the value has changed by at least "deltaThreshold"
 //
 // SAMPLE_DIGITAL mode:
 //   at least "timeThreshold" msecs has elapsed since last trigger
@@ -257,7 +259,7 @@ struct samplebuffer sampleRing;
 // will operate at the msec granularity but the timestamp data you
 // see will only have 128msec granularity (i.e., if you set it to trigger
 // every 50msec no matter what, it will in fact trigger but you will end
-// up with multiple sample points with an identical 128msec granularity 
+// up with multiple sample points with an identical 128msec granularity
 // time stamp. They will still be in time order of course.
 //
 //
@@ -275,12 +277,12 @@ struct timeAccumulator {
 };
 
 struct samplingProgram {
-  int mode;           // NULL, LEVEL, or DIGITAL
-  int pin;            // which pin to read
+  byte mode;           // NULL, LEVEL, or DIGITAL
+  byte pin;            // which pin to read
   int deltaThreshold; // for LEVEL mode
   int digitalHigh;    // above this is ON in DIGITAL mode
   int digitalLow;     // below this is OFF in DIGITAL mode
-  int previousVal;    
+  int previousVal;
 
                       // accumulate the total time in high/low state
   struct timeAccumulator accumHigh;
@@ -298,7 +300,7 @@ struct samplingProgram {
 // you could hardcode initial values here, but much better to
 // program via web and write to eeprom
 
-#define NPROGRAMS 5
+#define NPROGRAMS 4
 samplingProgram todoList[NPROGRAMS] = {
  { SAMPLE_NULL }
 };
@@ -308,7 +310,7 @@ samplingProgram todoList[NPROGRAMS] = {
 // stored packed time wraps every approx 18 hours. If we didn't do something
 // special, something off for 1 hour and something off for 19 hours would
 // look the same when a transition to on finally happens. In other words,
-// the time recorded for the "on" transition would seem to be only 1 hour 
+// the time recorded for the "on" transition would seem to be only 1 hour
 // later, even if it really had been 19 hours. This is effectively
 // a sample aliasing problem and so we enforce a max sample interval.
 //
@@ -320,7 +322,7 @@ samplingProgram todoList[NPROGRAMS] = {
 //       you have to recognize this when processing the log data.
 //
 // This is the default value for timeMax, calculated to provide
-// a 10 minute safety factor (out of the 18 hour wrap time); way 
+// a 10 minute safety factor (out of the 18 hour wrap time); way
 // overkill of course but we just want to be sure to get it a reading even
 // if there is some unknown delay (e.g., a timeout hang in the tcp stack
 // at exactly the wrong moment though I don't know whether that's even
@@ -360,18 +362,18 @@ void init_paramState() {
 // These two functions, tchar_alloc and tchar_free, are a front-end to
 // malloc. They manage a reusable character buffer to avoid constantly
 // calling malloc/free. I'm not sure if malloc/free is really a problem
-// to be honest, but given the embedded environment and the desire for 
+// to be honest, but given the embedded environment and the desire for
 // this thing to run forever, I'd rather manage the memory allocation
 // a bit more explicitly. Hence these functions.
 //
-// tchar_alloc is just like malloc. Give it a size in bytes and it 
+// tchar_alloc is just like malloc. Give it a size in bytes and it
 // gives you a buffer. If you ask for a "small enough" size, you get
 // the statically managed buffer -- IF it is available. If you ask for
 // something too big, or you ask for something when the static buffer is
 // already allocated, then tchar_alloc just calls malloc().
 //
 // tchar_free frees the allocated buffer, handling the case where it is
-// the static buffer or the case where it was actually malloced. As a 
+// the static buffer or the case where it was actually malloced. As a
 // notational convenience it returns NULL so you can p = tchar_free(p)
 // if you want p to be set to NULL as a side effect.
 //
@@ -401,11 +403,11 @@ char *tchar_alloc(int nbytes) {
     p = (char *)malloc(nbytes);
   }
   return p;
-} 
+}
 
 // as a notational convenience this returns NULL
 char *tchar_free(char *p) {
-  if (p == tmpchar) 
+  if (p == tmpchar)
     tmpchar_avail = 1;
   else {
     if (tc_q)
@@ -444,21 +446,22 @@ char *tchar_free(char *p) {
 //
 
 
-static char EEPROM_MAGIC_STRING[] = "xyzzy!";
+const char EEPROM_MAGIC_STRING[] = "xyzzy!";
+
 #define EEPROMMACBYTES 6
 
 //
 // called once at startup
 // If we find a previously stored mac addr, use it
 // If we don't, then use the programmed in mac addr AND store it in EEPROM
-// 
+//
 // Clumsy, but: if you have more than one of these on your network, then
 // alter the staticly stored MAC addr initialization and the first time
 // you start up this code the altered MAC will get stored; subsequent boots
 // will use that MAC addr instead of the compiled in one (it's up to you
 // to manage this process for your multiple boards; like I said .. clumsy)
 //
-// instead of having a way to clear EEPROM magic data, just frob the 
+// instead of having a way to clear EEPROM magic data, just frob the
 // magic string if you need to force a miscompare to start over
 //
 
@@ -469,13 +472,13 @@ void EEPROMmac(byte *m) {
   // If found, we previously saved program info there
   // note that the magic string is just N characters, no NUL in EEPROM
   //
-  char *s = EEPROM_MAGIC_STRING;
+  const char *s = EEPROM_MAGIC_STRING;
   int EEaddr;
   int i;
 
-  boolean foundit = true; 
+  boolean foundit = true;
   for (EEaddr = 0; *s; EEaddr++, s++) {
-    if (EEPROM.read(EEaddr) != *s)   
+    if (EEPROM.read(EEaddr) != *s)
       foundit = false;                      // miscompare, no stored program
   }
 
@@ -521,11 +524,11 @@ void readProgramsFromEEPROM() {
   // If found, we previously saved program info there
   // note that the magic string is just N characters, no NUL in EEPROM
   //
-  char *s = EEPROM_MAGIC_STRING;
+  const char *s = EEPROM_MAGIC_STRING;
   int EEaddr;
 
   for (EEaddr = 0; *s; EEaddr++, s++) {
-    if (EEPROM.read(EEaddr) != *s)   
+    if (EEPROM.read(EEaddr) != *s)
       return;                      // miscompare, no stored program
   }
 
@@ -552,7 +555,6 @@ void readProgramsFromEEPROM() {
       }
     }
 
- 
     // process this program string, just like if it came from web
     loadProgramTable(pgmString);
   }
@@ -563,7 +565,7 @@ void readProgramsFromEEPROM() {
 // destroy the magic string in the eeprom
 
 void zapEEPROMmagic() {
-  EEPROM.write(0, EEPROM_MAGIC_STRING[0]+1);  // i.e., a mismatch 
+  EEPROM.write(0, EEPROM_MAGIC_STRING[0]+1);  // i.e., a mismatch
 }
 
 /*
@@ -589,7 +591,7 @@ void writeProgramsToEEPROM() {
       pgmCount++;
       samplingProgramToString(p, buf, TMPCHARBUFSIZ);
 
-      for (char *s = buf; *s; s++) 
+      for (char *s = buf; *s; s++)
         EEPROM.write(EEaddr++, *s);
 
       EEPROM.write(EEaddr++, 0); // the NUL terminator
@@ -658,7 +660,7 @@ void samplingProgramToString(struct samplingProgram *p, char *buf, int bsiz) {
     for (int i = 0; i < PGMNAMELEN && p->pgmname[i] != '\0'; i++)
       *s++ = p->pgmname[i];
     *s = '\0';
-    
+
     //
     // Only need to encode the timeMax if not default
     //
@@ -697,20 +699,20 @@ void samplingProgramToString(struct samplingProgram *p, char *buf, int bsiz) {
 #define HTTPGET_TIMEOUT_SECONDS    150L
 #define HTTPGET_TIMEOUT            (HTTPGET_TIMEOUT_SECONDS * 1000)
 
-char *obtainHTTPGET(EthernetClient &client, char *s, int bufsiz) {  
+char *obtainHTTPGET(EthernetClient &client, char *s, int bufsiz) {
   char *p = s;               // p advances through output buffer
-  char *plim = &s[bufsiz-1]; // maximum VALID p (where the NUL must go) 
+  char *plim = &s[bufsiz-1]; // maximum VALID p (where the NUL must go)
 
   boolean prevCR = false;
   unsigned long start_time = millis();
 
   while (client.connected()) {
     unsigned long elapsed;
- 
+
     elapsed = delta_millis(start_time, millis());
     if (elapsed > HTTPGET_TIMEOUT)
       return NULL;
-    
+
     if (client.available()) {
       char c = client.read();
 
@@ -738,7 +740,7 @@ char *obtainHTTPGET(EthernetClient &client, char *s, int bufsiz) {
       if (c == '\n')
         p = s;                // i.e., discard and start over
       else if (p < plim && c != '\r')
-        *p++ = c;        
+        *p++ = c;
 
       prevCR = (c == '\r');
     }
@@ -754,7 +756,7 @@ char *obtainHTTPGET(EthernetClient &client, char *s, int bufsiz) {
 // in program space (flash) instead of using the limited RAM space for them.
 //
 void
-serveStringFromPROGMEM(EthernetClient& client, prog_char *PROGMEMSTR) {
+serveStringFromPROGMEM(EthernetClient& client, const char *PROGMEMSTR) {
 #define PCOPYSIZE 30          // we do it a little at a time
   char *pcopybuf = tchar_alloc(PCOPYSIZE);
 
@@ -775,16 +777,16 @@ serveStringFromPROGMEM(EthernetClient& client, prog_char *PROGMEMSTR) {
   }
 
   tchar_free(pcopybuf);
-}   
+}
 
-// prog_char/PROGMEM hacks get this string stored in Flash memory
-prog_char sr1[] PROGMEM = 
+// PROGMEM hacks get this string stored in Flash memory
+const char sr1[] PROGMEM =
   "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<!DOCTYPE HTML>\r\n<HTML><HEAD><TITLE>Arduino Sensor: ";
 
-prog_char sr2[] PROGMEM = "</TITLE></HEAD><BODY>\r\n";
-prog_char sr3[] PROGMEM = "</BODY></HTML>\r\n";
+const char sr2[] PROGMEM = "</TITLE></HEAD><BODY>\r\n";
+const char sr3[] PROGMEM = "</BODY></HTML>\r\n";
 
-void serveHTTPstandardreply(EthernetClient &client, prog_char *title) {
+void serveHTTPstandardreply(EthernetClient &client, const char *title) {
   serveStringFromPROGMEM(client, sr1);
   serveStringFromPROGMEM(client, title);
   serveStringFromPROGMEM(client, sr2);
@@ -803,39 +805,39 @@ void serveProgramString(EthernetClient& client, struct samplingProgram *pgm) {
 
 
 
-prog_char apjson[] PROGMEM = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n";
+const char apjson[] PROGMEM = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n";
 
 void serveJSONproto(EthernetClient& client) {
   serveStringFromPROGMEM(client, apjson);
 }
 
-prog_char sr4[] PROGMEM = "<br>\r\n";
+const char sr4[] PROGMEM = "<br>\r\n";
 
 void serveEndOfLine(EthernetClient& client) {
   serveStringFromPROGMEM(client, sr4);
 }
 
-prog_char spt_pin[] PROGMEM = " pin=";
-prog_char spt_NULL[] PROGMEM = "NULL";
-prog_char spt_LEVEL[] PROGMEM = " LEVEL; thresh=";
-prog_char spt_DIGITAL[] PROGMEM = " DIGITAL; high=";
-prog_char spt_DIG2[] PROGMEM = " low=";
-prog_char spt_time[] PROGMEM = " timeThreshold=";
-prog_char spt_tmax[] PROGMEM = " timeMax=";
-prog_char spt_qs[] PROGMEM = " /p?";
+const char spt_pin[] PROGMEM = " pin=";
+const char spt_NULL[] PROGMEM = "NULL";
+const char spt_LEVEL[] PROGMEM = " LEVEL; thresh=";
+const char spt_DIGITAL[] PROGMEM = " DIGITAL; high=";
+const char spt_DIG2[] PROGMEM = " low=";
+const char spt_time[] PROGMEM = " timeThreshold=";
+const char spt_tmax[] PROGMEM = " timeMax=";
+const char spt_qs[] PROGMEM = " /p?";
 
-prog_char spt_title[] PROGMEM = "Program";
+const char spt_title[] PROGMEM = "Program";
 
 //
 // display the current program table
 //
 void serveProgramTable(EthernetClient &client) {
   serveHTTPstandardreply(client, spt_title);
- 
+
   for (int i = 0; i < NPROGRAMS; i++) {
     struct samplingProgram *p = &todoList[i];
 
-    client.print(i); 
+    client.print(i);
     if (p->mode != SAMPLE_NULL && p->pgmname[0] != '\0') {
       char ctmp[PGMNAMELEN+2];
       ctmp[0] = ' ';
@@ -866,7 +868,7 @@ void serveProgramTable(EthernetClient &client) {
       serveProgramString(client, p);
     }
     serveEndOfLine(client);
-    
+
   }
 
   serveStandardClosing(client);
@@ -875,7 +877,7 @@ void serveProgramTable(EthernetClient &client) {
 //
 // when there's nothing to output, still need some sort of response
 //
-prog_char pOK[] PROGMEM = "OK";
+const char pOK[] PROGMEM = "OK";
 
 void serveOK(EthernetClient &client) {
   serveHTTPstandardreply(client, pOK);
@@ -900,7 +902,7 @@ char *nextdotfield(char *s) {
 // Note: the complete GET request is GET /p?n=1.d.3.600.200.500
 //
 // OR
-//     n=1.v.2.100.500   
+//     n=1.v.2.100.500
 // set slot 1 to level mode, pin 2, thresh (100), time delta (500)
 // for either mode, two additional parameters can be appended
 //    .name.timeMax
@@ -1000,7 +1002,7 @@ void loadProgramTable(char *s) {
     p->timeMax = MAXTIMEMAX;
 
 
-  // note that if you set timeMax to something greater than the 
+  // note that if you set timeMax to something greater than the
   // 19 bit wrap value, you will allow the aliasing problem to occur.
   // I think this should be forbidden here with this commented out
   // code but I've chosen to leave that possibility open if you insist
@@ -1014,23 +1016,23 @@ void loadProgramTable(char *s) {
 
 
 
-// prog_char/PROGMEM directives to get this huge string into Flash memory
+// PROGMEM directives to get this huge string into Flash memory
 // rather than run-time data (limited RAM) memory
 
-prog_char helpString[] PROGMEM = 
+const char helpString[] PROGMEM =
 "GET / -- just output a report<br>GET /0 -- only output pin 0 values (works for 0 .. 9 only)<br>GET /m -- available memory report<br>GET /p -- output the program table<br>GET /p?qstring -- load the program table from qstring<br>GET /r -- resets the sample ring buffer<br>GET /v0 -- immediately read value of input 0<br>&nbsp;&nbsp;/v1, v2, v3 etc immediately read that pin<br>GET /write-eeprom -- store program params into EEPROM<br>GET /help -- this info<br>GET /j -- JSON resource object<p>qstring for programs:<ul><li>n=1.d.3.600.200.500.name.30000 -- set slot 1 to digital mode, pin 3, hi/lo thresh (600/200), time delta 500<p>If name is specified, it must be 8 characters maximum. The last number is the timeMax; a reading is forced if this many seconds has elapsed since last trigger. Use zero or omit it for default.<li>n=1.v.2.100.500 -- set slot 1 to level mode, pin 2, delta thresh 100, time delta 500; also allows the optional name and timeMax parameters<li>n=1.x -- delete slot 1<ul></BODY></HTML>\r\n";
 
-prog_char pHelp[] PROGMEM = "Help";
+const char pHelp[] PROGMEM = "Help";
 
 void serveHelpString(EthernetClient& client) {
   serveHTTPstandardreply(client, pHelp);
   serveStringFromPROGMEM(client, helpString);
-}  
- 
-prog_char sv1[] PROGMEM = "pin ";
-prog_char sv2[] PROGMEM = " value ";
-prog_char sv3[] PROGMEM = " @ ";
-prog_char svtitle[] PROGMEM = "Current Value Reading";
+}
+
+const char sv1[] PROGMEM = "pin ";
+const char sv2[] PROGMEM = " value ";
+const char sv3[] PROGMEM = " @ ";
+const char svtitle[] PROGMEM = "Current Value Reading";
 
 void serveCurrentReading(EthernetClient& client, int pin)
 {
@@ -1038,9 +1040,9 @@ void serveCurrentReading(EthernetClient& client, int pin)
   int curVal = analogRead(pin);
   unsigned long now = millis();
 
-  serveStringFromPROGMEM(client, sv1); 
+  serveStringFromPROGMEM(client, sv1);
   client.print(pin);
-  serveStringFromPROGMEM(client, sv2); 
+  serveStringFromPROGMEM(client, sv2);
   client.print(curVal);
   serveStringFromPROGMEM(client, sv3);
   client.print(now);
@@ -1050,10 +1052,10 @@ void serveCurrentReading(EthernetClient& client, int pin)
 
 
 
-prog_char smem1[] PROGMEM = "Memavail: ";
-prog_char smem2[] PROGMEM = "allocated buffer size: ";
-prog_char smem3[] PROGMEM = "bufwraps: ";
-prog_char smemtitle[] PROGMEM = "Memory Information";
+const char smem1[] PROGMEM = "Memavail: ";
+const char smem2[] PROGMEM = "allocated buffer size: ";
+const char smem3[] PROGMEM = "bufwraps: ";
+const char smemtitle[] PROGMEM = "Memory Information";
 
 void serveMemavail(EthernetClient& client, struct samplebuffer *sb)
 {
@@ -1073,7 +1075,7 @@ void serveMemavail(EthernetClient& client, struct samplebuffer *sb)
     serveStringFromPROGMEM(client, smem3);
     client.print(sampleRing.wrapcount);
     serveEndOfLine(client);
-    
+
     serveStandardClosing(client);
 }
 
@@ -1089,10 +1091,10 @@ unsigned long delta_packed_time(unsigned long pt1, unsigned long pt2) {
   // than unsigned longs lets us use a simple hack to deal with that
   // (add the wrap-around amount to the second time)
   //
-  if (pt2 >= pt1) 
+  if (pt2 >= pt1)
     return pt2 - pt1;
-  else 
-    return pt2 + (PACKEDTIME_MASK + 1) - pt1; 
+  else
+    return pt2 + (PACKEDTIME_MASK + 1) - pt1;
 }
 
 //
@@ -1103,7 +1105,7 @@ unsigned long delta_packed_time(unsigned long pt1, unsigned long pt2) {
 unsigned long delta_millis(unsigned long m1, unsigned long m2) {
   if (m2 >= m1)
     return m2 - m1;
-  else {              
+  else {
     // probably some more clever way, but this works
     // basically we need to add 0x100000000 to the incorrectly "lower"
     // time m2 before doing the subtraction, but of course we need
@@ -1111,7 +1113,7 @@ unsigned long delta_millis(unsigned long m1, unsigned long m2) {
     //
 
     // compute m2-m1 but add in 0xFFFFFFFF
-    unsigned long tmp = 0xFFFFFFFF; 
+    unsigned long tmp = 0xFFFFFFFF;
 
     tmp -= m1;     // the -m1 part
     tmp += m2;     // the +m2 part .. does not overflow bcs m2<m1
@@ -1123,17 +1125,17 @@ unsigned long delta_millis(unsigned long m1, unsigned long m2) {
 
 
 
-prog_char srbt[] PROGMEM = "Report";
-prog_char srbhelp[] PROGMEM = "See /help for complete command list.<br>";
-prog_char srb1[] PROGMEM = "Now: ";
-prog_char srb2[] PROGMEM = " pack-masked: ";
-prog_char srb3[] PROGMEM = " uptime wrap-arounds: ";
-prog_char srbDT[] PROGMEM = " deltaT ";
+const char srbt[] PROGMEM = "Report";
+const char srbhelp[] PROGMEM = "See /help for complete command list.<br>";
+const char srb1[] PROGMEM = "Now: ";
+const char srb2[] PROGMEM = " pack-masked: ";
+const char srb3[] PROGMEM = " uptime wrap-arounds: ";
+const char srbDT[] PROGMEM = " deltaT ";
 
 
 void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) {
   serveHTTPstandardreply(client, srbt);
-  
+
   unsigned long now = millis();
 
   // if serving the root/default page, also remind them of help string
@@ -1141,10 +1143,10 @@ void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) 
     serveStringFromPROGMEM(client, srbhelp);
 
   serveStringFromPROGMEM(client, srb1);
-  client.print(now); 
+  client.print(now);
   serveStringFromPROGMEM(client, srb2);
-  client.print(PACKEDTIME_TO_MSECS(MSECS_TO_PACKEDTIME(now))); 
-  
+  client.print(PACKEDTIME_TO_MSECS(MSECS_TO_PACKEDTIME(now)));
+
   serveStringFromPROGMEM(client, srb3);
   client.print(uptime_wraps);
   serveEndOfLine(client);
@@ -1159,7 +1161,7 @@ void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) 
       i = sb->bsize - 1;
       --wrapID;
     }
-    
+
     unsigned long r = sb->sampleReadings[i];
 
     // When the sensor is first started or the ring buffer is reset
@@ -1175,7 +1177,7 @@ void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) 
 
       // PLEASE NOTE CAREFULLY:
       //    deltaT value is probably only useful on individual pin reports
-      //    On "all pins" report it's a delta from the previous 
+      //    On "all pins" report it's a delta from the previous
       //    reading (which might be an event on a different pin)
       //
       // RECOMMEND: Use the "only" report pin-by-pin if you need deltaT
@@ -1194,7 +1196,7 @@ void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) 
       prev_time = t1;
       serveEndOfLine(client);
     }
-  }  
+  }
   serveStandardClosing(client);
 }
 
@@ -1208,45 +1210,45 @@ void serveRingBuffer(EthernetClient& client, struct samplebuffer *sb, int only) 
 // (will eventually be overwritten) log entries for programs that have
 // since been deleted, AND there may not be any log entries for programs
 // that are currently active. Nevertheless, the assumption is that in
-// normal usage clients will be interested in log entries for active 
+// normal usage clients will be interested in log entries for active
 // programs and so those are the ones returned.
-// 
+//
 
-prog_char jrLBrace[] PROGMEM = "{ ";
-prog_char jrRBrace[] PROGMEM = " }";
-prog_char jrLBrk[] PROGMEM = "[ ";
-prog_char jrRBrk[] PROGMEM = " ]";
-prog_char jrComma[] PROGMEM = ", ";
+const char jrLBrace[] PROGMEM = "{ ";
+const char jrRBrace[] PROGMEM = " }";
+const char jrLBrk[] PROGMEM = "[ ";
+const char jrRBrk[] PROGMEM = " ]";
+const char jrComma[] PROGMEM = ", ";
 
-prog_char jrLogEntries[] PROGMEM = "{ \"LogEntries\" : [ ";
-prog_char jrpin[] PROGMEM = "{\"pin\" : ";
-prog_char jrpgmname[] PROGMEM = ", \"name\" : \"";
-prog_char jrdata[] PROGMEM = "\", \"data\" : \"j/";
-prog_char jrcloseData[] PROGMEM = "\" }";
+const char jrLogEntries[] PROGMEM = "{ \"LogEntries\" : [ ";
+const char jrpin[] PROGMEM = "{\"pin\" : ";
+const char jrpgmname[] PROGMEM = ", \"name\" : \"";
+const char jrdata[] PROGMEM = "\", \"data\" : \"j/";
+const char jrcloseData[] PROGMEM = "\" }";
 
 
 
 // status object
-prog_char jrsStatus[] PROGMEM = "\"Status\" : { \"Now\" : ";
-prog_char jrsPM[] PROGMEM = ", \"PackMaskedNow\" : ";
-prog_char jrsUpWrap[] PROGMEM = ", \"UptimeWraps\" : ";
-prog_char jrsRevision[] PROGMEM = ", \"Revision\" : \"";
-prog_char jrsMem[] PROGMEM = "\", \"MemAvail\" : ";
-prog_char jrsMemChg[] PROGMEM = ", \"MemAvailChanges\" : ";
-prog_char jrsBufsize[] PROGMEM = ", \"BufSize\" : ";
-prog_char jrsBufwraps[] PROGMEM = ", \"BufWraps\" : ";
-prog_char jrsPWC[] PROGMEM = ", \"PackWrapConstant\" : ";
+const char jrsStatus[] PROGMEM = "\"Status\" : { \"Now\" : ";
+const char jrsPM[] PROGMEM = ", \"PackMaskedNow\" : ";
+const char jrsUpWrap[] PROGMEM = ", \"UptimeWraps\" : ";
+const char jrsRevision[] PROGMEM = ", \"Revision\" : \"";
+const char jrsMem[] PROGMEM = "\", \"MemAvail\" : ";
+const char jrsMemChg[] PROGMEM = ", \"MemAvailChanges\" : ";
+const char jrsBufsize[] PROGMEM = ", \"BufSize\" : ";
+const char jrsBufwraps[] PROGMEM = ", \"BufWraps\" : ";
+const char jrsPWC[] PROGMEM = ", \"PackWrapConstant\" : ";
 // program object
-prog_char jrpPrograms[] PROGMEM = "\"Programs\" : [ ";
-prog_char jrpNum[] PROGMEM = "{ \"SlotNumber\" : ";
-prog_char jrpQS[] PROGMEM = ", \"QString\" : \"";
-prog_char jrpPin[] PROGMEM = "\", \"Pin\" : ";
-prog_char jrpDigMode[] PROGMEM = ", \"Mode\" : \"DIGITAL\"";
-prog_char jrpLvlMode[] PROGMEM = ", \"Mode\" : \"LEVEL\"";
-prog_char jrpPrevVal[] PROGMEM = ", \"PreviousVal\" : ";
-prog_char jrpPrevTime[] PROGMEM = ", \"PreviousTime\" : ";
-prog_char jrpDHAcc[] PROGMEM = ", \"DigitalHighAccumulator\" : ";
-prog_char jrpDLAcc[] PROGMEM = ", \"DigitalLowAccumulator\" : ";
+const char jrpPrograms[] PROGMEM = "\"Programs\" : [ ";
+const char jrpNum[] PROGMEM = "{ \"SlotNumber\" : ";
+const char jrpQS[] PROGMEM = ", \"QString\" : \"";
+const char jrpPin[] PROGMEM = "\", \"Pin\" : ";
+const char jrpDigMode[] PROGMEM = ", \"Mode\" : \"DIGITAL\"";
+const char jrpLvlMode[] PROGMEM = ", \"Mode\" : \"LEVEL\"";
+const char jrpPrevVal[] PROGMEM = ", \"PreviousVal\" : ";
+const char jrpPrevTime[] PROGMEM = ", \"PreviousTime\" : ";
+const char jrpDHAcc[] PROGMEM = ", \"DigitalHighAccumulator\" : ";
+const char jrpDLAcc[] PROGMEM = ", \"DigitalLowAccumulator\" : ";
 
 
 
@@ -1259,7 +1261,7 @@ void serveJSONresources(EthernetClient& client) {
 
   serveStringFromPROGMEM(client, jrLogEntries);
 
-  // figure out which pins have programs 
+  // figure out which pins have programs
   for (i = 0; i < NPROGRAMS; i++) {
     if (todoList[i].mode != SAMPLE_NULL)
       havepins |= 1<<todoList[i].pin;
@@ -1306,7 +1308,7 @@ void serveJSONresources(EthernetClient& client) {
   unsigned long now = millis();
   client.print(now);
   serveStringFromPROGMEM(client, jrsPM);
-  client.print(PACKEDTIME_TO_MSECS(MSECS_TO_PACKEDTIME(now))); 
+  client.print(PACKEDTIME_TO_MSECS(MSECS_TO_PACKEDTIME(now)));
   serveStringFromPROGMEM(client, jrsUpWrap);
   client.print(uptime_wraps);
   serveStringFromPROGMEM(client, jrsRevision);
@@ -1375,7 +1377,6 @@ void serveJSONresources(EthernetClient& client) {
 
   serveStringFromPROGMEM(client, jrRBrace);
 
-  
 
 }
 
@@ -1386,16 +1387,16 @@ void serveJSONresources(EthernetClient& client) {
 // this is really just a flavor of serveRingBuffer and it would
 // have been nice to make these two share commonality somehow
 //
-prog_char jsLog[] PROGMEM = "{ \"Log\" : [ ";
-prog_char jsType[] PROGMEM = "{ \"Type\" : \"SAMPLE\" , \"Value\" : ";
-prog_char jsTime[] PROGMEM = ", \"Time\" : ";
-prog_char jsDT[] PROGMEM = ", \"DeltaT\" : ";
-prog_char jsIDmaj[] PROGMEM = ", \"IDmajor\" : ";
-prog_char jsIDmin[] PROGMEM = ", \"IDminor\" : ";
+const char jsLog[] PROGMEM = "{ \"Log\" : [ ";
+const char jsType[] PROGMEM = "{ \"Type\" : \"SAMPLE\" , \"Value\" : ";
+const char jsTime[] PROGMEM = ", \"Time\" : ";
+const char jsDT[] PROGMEM = ", \"DeltaT\" : ";
+const char jsIDmaj[] PROGMEM = ", \"IDmajor\" : ";
+const char jsIDmin[] PROGMEM = ", \"IDminor\" : ";
 
 
 void serveJSONobject(EthernetClient &client, struct samplebuffer *sb, int objn) {
-  serveJSONproto(client); 
+  serveJSONproto(client);
 
   unsigned long prev_time = MSECS_TO_PACKEDTIME(millis());
 
@@ -1410,7 +1411,7 @@ void serveJSONobject(EthernetClient &client, struct samplebuffer *sb, int objn) 
       i = sb->bsize - 1;
       --wrapID;
     }
-  
+
     unsigned long r = sb->sampleReadings[i];
 
     // When the sensor is first started or the ring buffer is reset
@@ -1420,7 +1421,7 @@ void serveJSONobject(EthernetClient &client, struct samplebuffer *sb, int objn) 
     if (r != SR_RESERVED_VALUE && SRPIN(r) == objn) {
       unsigned long t1 = SRPACKEDTIME(r);
 
-      if (needComma) 
+      if (needComma)
         serveStringFromPROGMEM(client, jrComma);
       serveStringFromPROGMEM(client, jsType);
       client.print(SRVAL(r));
@@ -1439,7 +1440,7 @@ void serveJSONobject(EthernetClient &client, struct samplebuffer *sb, int objn) 
       serveStringFromPROGMEM(client, jrRBrace);
       needComma = 1;
     }
-  } 
+  }
   serveStringFromPROGMEM(client, jrRBrk);
   serveStringFromPROGMEM(client, jrRBrace);
 }
@@ -1463,7 +1464,7 @@ void webProcessing() {
   EthernetClient client = server.available();
   if (client) {
 
-    // 
+    //
     // URL scheme:
     //      GET /        -- output the full ring buffer report
     //
@@ -1472,7 +1473,7 @@ void webProcessing() {
     //
     // JSON INTERFACE -------------------------------------------------------
     //      GET /j       -- json resources, returns summary object
-    //                      From there follow the URIs 
+    //                      From there follow the URIs
     //                      defined in summary object, typically:
     //                         /j/0 to get pin 0 data log, /j/1 etc
     // ----------------------------------------------------------------------
@@ -1490,9 +1491,9 @@ void webProcessing() {
     //      GET /write-eeprom -- store program params into EEPROM
     //      GET /help    -- print out this info
     //
-    // we are NOT parsing the URL very robustly; 
+    // we are NOT parsing the URL very robustly;
     // get it right or don't get what you want
-    //        
+    //
 
     // if your request doesn't fit, too bad (it gets truncated/ignored)
     // all valid requests fit easily
@@ -1512,8 +1513,8 @@ void webProcessing() {
 
       // a note about rampant tchar_free() calls ... we are freeing
       // up the URL buffer "as soon as we can" so that the called functions
-      // can re-use that tchar_alloc() space themselves. If we manually 
-      // freed sbuf, sbuf becomes NULL. At the bottom we free the sbuf 
+      // can re-use that tchar_alloc() space themselves. If we manually
+      // freed sbuf, sbuf becomes NULL. At the bottom we free the sbuf
       // in those cases where it wasn't preemptively freed.
       // HOORAY FOR SMALL MEMORY FOOTPRINT HACKS!! :)
 
@@ -1524,14 +1525,14 @@ void webProcessing() {
         break;
 
       case 'j':                // the JSON interface
-      case 'J': 
+      case 'J':
         if (s[1] == '\0' || s[1] == ' ' ||
             (s[1] == '/' && s[2] == '\0')) {
-          sbuf = tchar_free(sbuf); 
+          sbuf = tchar_free(sbuf);
           serveJSONresources(client);
         } else if (s[1] == '/') {
           s += 2; // skip to the number part
-          if (s[0] >= '0' && s[0] <= '0'+PINMAX && 
+          if (s[0] >= '0' && s[0] <= '0'+PINMAX &&
               (s[1] == '\0' || s[1] == ' ')) {
             pinnum = s[0] - '0';
             sbuf = tchar_free(sbuf);
@@ -1605,13 +1606,13 @@ void webProcessing() {
         // see if GET /0, GET /1, etc
         if (s[0] >= '0' && s[0] <= '0' + PINMAX)
           pinnum = s[0] - '0';
-          
+
         sbuf = tchar_free(sbuf);
         serveRingBuffer(client, &sampleRing, pinnum);
         break;
       }
 
-      if (sbuf)                       // wasn't freed in above 
+      if (sbuf)                       // wasn't freed in above
         sbuf = tchar_free(sbuf);      // free it now
 
       if (sendHelp)
@@ -1644,8 +1645,8 @@ void pinProcessing(struct samplingProgram *pgm) {
 
 
   // happens whenever a samplingProgram is first started (no previous state)
-  if (pgm->firstTime) 
-    addIt = true; 
+  if (pgm->firstTime)
+    addIt = true;
 
   if (! addIt) {
 
@@ -1655,7 +1656,7 @@ void pinProcessing(struct samplingProgram *pgm) {
 
     if (deltaT >= pgm->timeThreshold) {
 
-      // record it if it has been "too long" 
+      // record it if it has been "too long"
       addIt = (deltaT >= pgm->timeMax);
 
       // or record it if the value has changed
@@ -1663,12 +1664,12 @@ void pinProcessing(struct samplingProgram *pgm) {
         switch (pgm->mode) {
           case SAMPLE_DIGITAL:
             // compare the above/below threshold states, record if different
-            if (pgm->previousVal >= pgm->digitalHigh) 
+            if (pgm->previousVal >= pgm->digitalHigh)
               addIt = (curval <= pgm->digitalLow);
             else
               addIt = (curval >= pgm->digitalHigh);
             break;
-      
+
           case SAMPLE_LEVEL:
             addIt = (abs(curval - pgm->previousVal) >= pgm->deltaThreshold);
             break;
@@ -1684,7 +1685,7 @@ void pinProcessing(struct samplingProgram *pgm) {
       // now accumulate the time recorded for the previous state
       if (! pgm->firstTime) {          // (no previous state firstTime)
         struct timeAccumulator *HighLow =
-                          (pgm->previousVal >= pgm->digitalHigh) ? 
+                          (pgm->previousVal >= pgm->digitalHigh) ?
                           &pgm->accumHigh : &pgm->accumLow;
 
         int dTmsecs = deltaT % 1000;
@@ -1707,16 +1708,17 @@ void pinProcessing(struct samplingProgram *pgm) {
 
 // the setup routine runs once when you press reset:
 void setup() {
-  EEPROMmac(mac);   // get MAC addr, or init it if not there
 
-  Ethernet.begin(mac);
+  EEPROMmac(macaddr);   // get MAC addr, or init it if not there
+
+  Ethernet.begin(macaddr);
   server.begin();
 
   readProgramsFromEEPROM();
-  
+
 #define NSAMPLESMAX 250    // might not really get this many on small Arduinos
 
-  alloc_samplebuffer(&sampleRing, NSAMPLESMAX); 
+  alloc_samplebuffer(&sampleRing, NSAMPLESMAX);
   init_paramState();
 }
 
@@ -1730,7 +1732,7 @@ unsigned long previous_now;
 void loop() {
   unsigned long now = millis();
   struct samplingProgram *params;
-  
+
   // entirely for reporting purposes only, count time wraps (~~50 days)
   if (now < previous_now)
     ++uptime_wraps;
@@ -1747,7 +1749,7 @@ void loop() {
   // will report results and/or accept new "programming" instructions
   webProcessing();
 
-  // go through the current list of "programming" instructions for 
+  // go through the current list of "programming" instructions for
   // what pins to read, how often to sample them, etc
   for (params = todoList; params < &todoList[NPROGRAMS]; params++) {
     if (params->mode != SAMPLE_NULL)

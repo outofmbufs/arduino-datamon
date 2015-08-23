@@ -3,12 +3,12 @@ This program implements an Arduino analog data monitor. It constantly reads a nu
 
 The ring buffer can be accessed via a browser or via a JSON/HTTP interface.
 
-## New Aug 23 2015
+## New (Aug 23 2015)
 Fixed the PROGMEM stuff so it will compile and work once again with the newer build tools. Sorry about that!
 
 ## Features
 * Sampling criteria are programmable. Input pins, recording thresholds, time parameters, "analog" vs "digital" mode.
-* Optimized RAM Usage. Can store 248 samples (992 bytes) on the standard/small 2K RAM arduino.
+* Optimized RAM Usage. Can store 250 samples (1000 bytes) on the standard/small 2K RAM arduino.
 * Web interface. You can manage the device completely via your web browser.
 * JSON HTTP interface. For programmatic access to sample data sp you don't have to screen-scrape the web interface to read the data.
 * Can be used simply to get real-time network access to the Arduino A/D.
